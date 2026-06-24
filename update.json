@@ -1,9 +1,9 @@
 {
-  " version\: \1.0.1\,
- \baseUrl\: \https://raw.githubusercontent.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME/main/\,
- \files\: [
- \index.html\,
- \main.js\,
- \logo.js\
- ]
+  "version": "1.0.1",
+  "baseUrl": "https://raw.githubusercontent.com/gsmsupermarket-updates/billing-updates/main/",
+  "files": [
+    "index.html",
+    "main.js",
+    "logo.js"
+  ]
 }
