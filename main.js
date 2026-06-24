@@ -3,6 +3,7 @@ const path = require("path");
 const fs = require("fs");
 const { exec, execSync, spawn } = require("child_process");
 const http = require("http");
+const https = require("https");
 const bwipjs = require("bwip-js");
 const packageJson = require("./package.json");
 const crypto = require("crypto");
@@ -6508,6 +6509,71 @@ ipcMain.handle("get-gemini-key", async () => {
 ipcMain.handle("save-gemini-key", async (_event, key) => {
   await run("INSERT OR REPLACE INTO settings(key, value) VALUES(?, ?)", ["gemini_api_key", String(key || "")]);
   return true;
+});
+
+// --- CLOUD AUTO-UPDATER IPC HANDLERS ---
+ipcMain.handle("get-update-url", async () => {
+  return await getSettingValue("update_server_url", "https://raw.githubusercontent.com/username/repo/main/update.json");
+});
+
+ipcMain.handle("save-update-url", async (_event, url) => {
+  await run("INSERT OR REPLACE INTO settings(key, value) VALUES(?, ?)", ["update_server_url", String(url || "")]);
+  return { ok: true };
+});
+
+ipcMain.handle("check-for-updates", async (_event, arg) => {
+  const updateUrl = typeof arg === 'object' ? arg.url : arg;
+  return new Promise((resolve, reject) => {
+    https.get(updateUrl, (res) => {
+      let data = "";
+      res.on("data", chunk => data += chunk);
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data);
+          resolve(json);
+        } catch(e) {
+          reject(e);
+        }
+      });
+    }).on("error", (e) => reject(e));
+  });
+});
+
+ipcMain.handle("apply-update", async (_event, updateMeta) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const baseUrl = updateMeta.baseUrl;
+      const files = updateMeta.files || [];
+      
+      const downloadFile = (file) => {
+        return new Promise((res, rej) => {
+          const fileUrl = baseUrl + file;
+          https.get(fileUrl, (response) => {
+            if (response.statusCode !== 200) {
+              return rej(new Error("Failed to download " + file + " (Status: " + response.statusCode + ")"));
+            }
+            let data = "";
+            response.setEncoding("utf8");
+            response.on("data", chunk => data += chunk);
+            response.on("end", () => {
+              fs.writeFileSync(path.join(__dirname, file), data, "utf8");
+              res();
+            });
+          }).on("error", rej);
+        });
+      };
+
+      for (const file of files) {
+        await downloadFile(file);
+      }
+      
+      resolve({ restarting: true });
+      app.relaunch();
+      app.exit(0);
+    } catch(err) {
+      reject(err);
+    }
+  });
 });
 
 
