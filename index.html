@@ -6825,6 +6825,9 @@
           <button class="admin-tab-btn" type="button" data-admin-tab="backup" onclick="showAdminTab('backup')">
             <span class="admin-tab-icon">💾</span><span class="admin-tab-title">Backup History</span>
           </button>
+          <button class="admin-tab-btn" type="button" data-admin-tab="updater" onclick="showAdminTab('updater')">
+            <span class="admin-tab-icon">☁️</span><span class="admin-tab-title">Cloud Update</span>
+          </button>
           <button class="admin-tab-btn" type="button" data-admin-tab="audit" onclick="showAdminTab('audit')">
             <span class="admin-tab-icon">📋</span><span class="admin-tab-title">Audit Logs</span>
           </button>
@@ -7338,6 +7341,25 @@
           </thead>
           <tbody id="backupLogsTable"></tbody>
         </table>
+      </div>
+      </div>
+
+      <!-- CLOUD UPDATER PANEL -->
+      <div id="updaterPanel" class="admin-tab-panel admin-card" data-admin-panel="updater">
+        <div class="admin-card-head">
+          <span class="admin-icon">☁️</span>
+          <h3 style="margin:0;">Cloud Auto-Updater</h3>
+        </div>
+        <p class="muted">Check for updates and download them directly from the cloud repository.</p>
+        <div style="margin-top: 15px;">
+          <label>Update Server URL (update.json)</label><br />
+          <input id="updateServerUrl" type="text" placeholder="https://raw.githubusercontent.com/username/repo/main/update.json" style="width: 100%; max-width: 600px; padding: 8px; margin-top: 4px;" />
+        </div>
+        <div style="margin-top: 15px; display: flex; gap: 10px; align-items: center;">
+          <button type="button" class="btn-primary" onclick="checkForCloudUpdates()">Check for Updates</button>
+          <button type="button" onclick="saveUpdateSettings()">Save URL</button>
+          <span id="updateStatusText" style="font-weight: 600;"></span>
+        </div>
       </div>
 
       <h3 class="admin-tab-panel" data-admin-panel="audit" style="margin: 12px 0 0;">Audit Logs</h3>
@@ -20305,6 +20327,75 @@ ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${
         }
       }
     });
+
+    // --- CLOUD AUTO-UPDATER LOGIC ---
+    async function loadUpdateSettings() {
+      if (!window.api.getUpdateUrl) return;
+      try {
+        const url = await window.api.getUpdateUrl();
+        document.getElementById("updateServerUrl").value = url || "";
+      } catch (err) {
+        console.error("Failed to load update URL", err);
+      }
+    }
+
+    async function saveUpdateSettings() {
+      if (!window.api.saveUpdateUrl) return;
+      const url = document.getElementById("updateServerUrl").value.trim();
+      try {
+        await window.api.saveUpdateUrl(url);
+        document.getElementById("updateStatusText").textContent = "URL saved.";
+        document.getElementById("updateStatusText").className = "green";
+        setTimeout(() => { document.getElementById("updateStatusText").textContent = ""; }, 3000);
+      } catch (err) {
+        document.getElementById("updateStatusText").textContent = "Failed to save: " + err.message;
+        document.getElementById("updateStatusText").className = "red";
+      }
+    }
+
+    async function checkForCloudUpdates() {
+      if (!window.api.checkForUpdates) return;
+      const url = document.getElementById("updateServerUrl").value.trim();
+      const statusEl = document.getElementById("updateStatusText");
+      
+      if (!url) {
+        statusEl.textContent = "Please enter an update URL first.";
+        statusEl.className = "red";
+        return;
+      }
+      
+      statusEl.textContent = "Checking for updates...";
+      statusEl.className = "blue";
+      
+      try {
+        const json = await window.api.checkForUpdates(url);
+        if (!json.version || !json.baseUrl || !json.files) {
+          throw new Error("Invalid update metadata received.");
+        }
+        
+        statusEl.textContent = `Found update (v${json.version}). Downloading files...`;
+        
+        const result = await window.api.applyUpdate(json);
+        if (result && result.restarting) {
+          statusEl.textContent = "Update applied! Restarting app...";
+          statusEl.className = "green";
+        }
+      } catch (err) {
+        statusEl.textContent = "Update failed: " + err.message;
+        statusEl.className = "red";
+      }
+    }
+    
+    // Load update URL when settings opens
+    const originalShowAdminTab = window.showAdminTab;
+    window.showAdminTab = function(tabId) {
+      if (typeof originalShowAdminTab === 'function') {
+        originalShowAdminTab(tabId);
+      }
+      if (tabId === 'updater') {
+        loadUpdateSettings();
+      }
+    };
   </script>
 </body>
 </html>
