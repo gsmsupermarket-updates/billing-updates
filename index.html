@@ -447,6 +447,30 @@
       background-size: 28px 28px;
     }
 
+    body[data-bg="lavender"] {
+      --bg: linear-gradient(135deg, #f3ebfc 0%, #e7d6f8 100%);
+    }
+
+    body[data-bg="mint"] {
+      --bg: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    }
+
+    body[data-bg="peach"] {
+      --bg: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+    }
+
+    body[data-bg="ocean"] {
+      --bg: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    }
+
+    body[data-bg="sunset"] {
+      --bg: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    }
+
+    body[data-bg="slate"] {
+      --bg: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+    }
+
     * {
       box-sizing: border-box;
     }
@@ -4278,12 +4302,8 @@
 
   <div id="appShell" style="display:none;">
     <div class="sidebar">
-      <div class="sidebar-brand">
-        <div class="brand-icon" id="sidebarUserInitials">BS</div>
-        <div class="brand-text">
-          <div class="brand-name" id="sidebarUserName">GSM Super Market</div>
-          <div class="brand-sub" id="sidebarUserRole">Billing POS</div>
-        </div>
+      <div class="sidebar-brand" style="display: flex; justify-content: center; align-items: center; padding: 20px 10px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 10px;">
+        <img src="build/icon.png" alt="GSM Logo" style="max-width: 80px; height: auto; mix-blend-mode: screen;">
       </div>
       <div id="menuTitle" class="nav-title">Main Menu</div>
       <div class="nav-list">
@@ -4324,7 +4344,7 @@
     </div>
 
     <div class="main">
-      <div class="app-topbar">
+      <div class="app-topbar" style="display:none;">
         <div>
           <div class="workspace-kicker" id="headerKicker">Retail Control Desk</div>
           <div class="workspace-title" id="headerStoreName">GSM Super Market</div>
@@ -6934,6 +6954,12 @@
                   <option value="ice">Ice</option>
                   <option value="dots">Dots</option>
                   <option value="grid">Grid</option>
+                  <option value="lavender">Lavender</option>
+                  <option value="mint">Mint</option>
+                  <option value="peach">Peach</option>
+                  <option value="ocean">Ocean</option>
+                  <option value="sunset">Sunset</option>
+                  <option value="slate">Slate</option>
                 </select>
               </div>
             </div>
@@ -7104,6 +7130,26 @@
             <select id="hardwareDefaultPrintMode">
               <option value="thermal">Thermal</option>
               <option value="a4">A4</option>
+            </select>
+          </div>
+          <div>
+            <label>Thermal Printer Device</label><br />
+            <select id="hardwareThermalPrinterDevice">
+              <option value="">-- Default System Printer --</option>
+            </select>
+          </div>
+          <div>
+            <label>Thermal Printer Width</label><br />
+            <select id="hardwareThermalPrinterWidth">
+              <option value="80mm">80mm (approx 3.15 inch)</option>
+              <option value="58mm">58mm (approx 2.25 inch)</option>
+            </select>
+          </div>
+          <div>
+            <label>Barcode Label Format</label><br />
+            <select id="hardwareBarcodeLabelFormat">
+              <option value="1-across">1-Across Thermal (e.g. 50x25mm)</option>
+              <option value="3-across">3-Across A4 (104x25mm)</option>
             </select>
           </div>
           <div>
@@ -7703,6 +7749,9 @@
     const userMgmtPanel = document.getElementById("userMgmtPanel");
     const hardwareMessage = document.getElementById("hardwareMessage");
     const hardwareDefaultPrintModeInput = document.getElementById("hardwareDefaultPrintMode");
+    const hardwareThermalPrinterDeviceInput = document.getElementById("hardwareThermalPrinterDevice");
+    const hardwareThermalPrinterWidthInput = document.getElementById("hardwareThermalPrinterWidth");
+    const hardwareBarcodeLabelFormatInput = document.getElementById("hardwareBarcodeLabelFormat");
     const hardwareScannerSubmitModeInput = document.getElementById("hardwareScannerSubmitMode");
     const hardwareScannerFocusLockInput = document.getElementById("hardwareScannerFocusLock");
     const hardwareCustomerDisplayEnabledInput = document.getElementById("hardwareCustomerDisplayEnabled");
@@ -8672,7 +8721,7 @@
         preferredBatchId: batch ? Number(batch.id) : null,
         batchNo: String(batch?.batchNo || ""),
         expiryDate: String(batch?.expiryDate || ""),
-        mrp: Number(product.mrp || 0),
+        mrp: Number(product.mrp || product.price || 0),
         markdownPercent,
         hasBatchTracking: Boolean(product.hasBatchTracking),
         batchAvailableQty: Number(batch?.availableQty || 0),
@@ -9294,6 +9343,8 @@
         const settings = await window.api.getHardwareSettings();
         hardwareSettingsCache = settings || {};
         hardwareDefaultPrintModeInput.value = String(settings.defaultPrintMode || "thermal");
+        hardwareThermalPrinterWidthInput.value = String(settings.thermalPrinterWidth || "80mm");
+        hardwareBarcodeLabelFormatInput.value = String(settings.barcodeLabelFormat || "3-across");
         hardwareScannerSubmitModeInput.value = String(settings.scannerSubmitMode || "enter");
         hardwareScannerFocusLockInput.value = settings.scannerFocusLock ? "1" : "0";
         hardwareCustomerDisplayEnabledInput.value = settings.customerDisplayEnabled ? "1" : "0";
@@ -9323,6 +9374,9 @@
       try {
         await window.api.saveHardwareSettings({
           defaultPrintMode: String(hardwareDefaultPrintModeInput.value || "thermal"),
+          thermalPrinterDevice: String(hardwareThermalPrinterDeviceInput.value || "").trim(),
+          thermalPrinterWidth: String(hardwareThermalPrinterWidthInput.value || "80mm"),
+          barcodeLabelFormat: String(hardwareBarcodeLabelFormatInput.value || "3-across"),
           scannerSubmitMode: String(hardwareScannerSubmitModeInput.value || "enter"),
           scannerFocusLock: String(hardwareScannerFocusLockInput.value || "0") === "1",
           customerDisplayEnabled: String(hardwareCustomerDisplayEnabledInput.value || "0") === "1",
@@ -9371,6 +9425,10 @@
       try {
         const data = await window.api.getHardwareDiagnostics();
         hardwareDiagnosticsCache = data || {};
+        const printers = Array.isArray(data.printers) ? data.printers : [];
+        const currentDevice = hardwareSettingsCache.thermalPrinterDevice || "";
+        hardwareThermalPrinterDeviceInput.innerHTML = `<option value="">-- Default System Printer --</option>` + 
+          printers.map(p => `<option value="${esc(p.name)}" ${p.name === currentDevice ? 'selected' : ''}>${esc(p.displayName || p.name)}</option>`).join("");
         hardwareDiagSummary.textContent =
           `App ${data.appVersion || "-"} | Electron ${data.electronVersion || "-"} | Node ${data.nodeVersion || "-"} | Backups ${Number(data.backupCount || 0)} | Customer Display ${data.customerDisplayOpen ? "Open" : "Closed"} | Mobile Companion ${data.mobileCompanionOpen ? "Open" : "Closed"}`;
 
@@ -9388,8 +9446,6 @@
             )
             .join("")
           : `<tr><td colspan="3">No displays detected.</td></tr>`;
-
-        const printers = Array.isArray(data.printers) ? data.printers : [];
         hardwarePrintersTable.innerHTML = printers.length
           ? printers
             .map(
@@ -9557,8 +9613,8 @@
       }
 
       autocompleteResults = allProductsCache.filter(p =>
-        (p.name && p.name.toLowerCase().includes(val)) ||
-        (p.barcode && p.barcode.toLowerCase().includes(val))
+        (String(p.name || '').toLowerCase().includes(val)) ||
+        (String(p.barcode || '').toLowerCase().includes(val))
       ).slice(0, 20);
 
       if (autocompleteResults.length === 0) {
@@ -9694,6 +9750,15 @@
         e.preventDefault();
         const firstQty = document.querySelector("#cartTable input.qty-input");
         if (firstQty) firstQty.focus({ preventScroll: true });
+        return;
+      }
+      
+      if (e.key === "ArrowUp" && (barcodeAutocomplete.classList.contains("hidden") || autocompleteResults.length === 0)) {
+        e.preventDefault();
+        const qtyInputs = document.querySelectorAll("#cartTable input.qty-input");
+        if (qtyInputs.length > 0) {
+          qtyInputs[qtyInputs.length - 1].focus({ preventScroll: true });
+        }
         return;
       }
 
@@ -10000,7 +10065,7 @@
           preferredBatchId: null,
           batchNo: "",
           expiryDate: "",
-          mrp: Number(product.mrp || 0),
+          mrp: Number(product.mrp || product.price || 0),
           markdownPercent: 0,
           hasBatchTracking: false,
           batchAvailableQty: 0,
@@ -10293,17 +10358,17 @@ ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${
             </td>
             <td>
               <div class="qty-adjuster">
-                <input type="number" class="qty-input" value="${item.qty}" min="0.001" step="any" onfocus="this.select()" onchange="updateQty(${item.lineId}, this.value)" onkeydown="if(event.key==='ArrowDown' || event.key==='ArrowUp'){ event.preventDefault(); const tr = this.closest('tr'); const next = event.key==='ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if(next){ window.pendingFocusLineId=next.dataset.lineId; window.pendingFocusInputIndex=0; setTimeout(()=>window.applyPendingFocus(),50); } } else if(event.key==='Enter'){ event.preventDefault(); window.pendingFocusLineId='${item.lineId}'; window.pendingFocusInputIndex=1; setTimeout(()=>window.applyPendingFocus(),50); }" style="width: 100%; border-radius: 6px; text-align: center; font-weight: 800; font-size: 15px; color: var(--text);" />
+                <input type="number" class="qty-input" value="${item.qty}" min="0.001" step="any" onfocus="this.select()" onchange="updateQty(${item.lineId}, this.value)" onkeydown="if(event.key==='ArrowDown' || event.key==='ArrowUp'){ event.preventDefault(); const tr = this.closest('tr'); const next = event.key==='ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if(next){ window.pendingFocusLineId=next.dataset.lineId; window.pendingFocusInputIndex=0; setTimeout(()=>window.applyPendingFocus(),50); } else if (event.key==='ArrowUp') { document.getElementById('barcode').focus({preventScroll:true}); } } else if(event.key==='Enter'){ event.preventDefault(); window.pendingFocusLineId='${item.lineId}'; window.pendingFocusInputIndex=1; setTimeout(()=>window.applyPendingFocus(),50); }" style="width: 100%; border-radius: 6px; text-align: center; font-weight: 800; font-size: 15px; color: var(--text);" />
               </div>
             </td>
             <td style="text-align: center; font-weight: 700; color: var(--muted); font-size: 14px;">
               ${Number(item.mrp || item.originalPrice || 0).toFixed(2)}
             </td>
             <td style="text-align: center;">
-              <input type="number" class="row-discount-input" value="${Number(item.originalPrice).toFixed(2)}" min="0" step="any" onfocus="this.select()" onchange="updateItemRate(${item.lineId}, this.value)" onkeydown="if(event.key==='ArrowDown' || event.key==='ArrowUp'){ event.preventDefault(); const tr = this.closest('tr'); const next = event.key==='ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if(next){ window.pendingFocusLineId=next.dataset.lineId; window.pendingFocusInputIndex=1; setTimeout(()=>window.applyPendingFocus(),50); } } else if(event.key==='Enter'){ event.preventDefault(); window.pendingFocusLineId='${item.lineId}'; window.pendingFocusInputIndex=2; setTimeout(()=>window.applyPendingFocus(),50); }" style="text-align: center; font-weight: 700; font-size: 14px;" />
+              <input type="number" class="row-discount-input" value="${Number(item.originalPrice).toFixed(2)}" min="0" step="any" onfocus="this.select()" onchange="updateItemRate(${item.lineId}, this.value)" onkeydown="if(event.key==='ArrowDown' || event.key==='ArrowUp'){ event.preventDefault(); const tr = this.closest('tr'); const next = event.key==='ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if(next){ window.pendingFocusLineId=next.dataset.lineId; window.pendingFocusInputIndex=1; setTimeout(()=>window.applyPendingFocus(),50); } else if (event.key==='ArrowUp') { document.getElementById('barcode').focus({preventScroll:true}); } } else if(event.key==='Enter'){ event.preventDefault(); window.pendingFocusLineId='${item.lineId}'; window.pendingFocusInputIndex=2; setTimeout(()=>window.applyPendingFocus(),50); }" style="text-align: center; font-weight: 700; font-size: 14px;" />
             </td>
             <td style="text-align: center;">
-              <input type="number" class="row-discount-input" value="${item.discount || 0}" min="0" step="any" onfocus="this.select()" onchange="updateItemDiscount(${item.lineId}, this.value)" onkeydown="if(event.key==='ArrowDown' || event.key==='ArrowUp'){ event.preventDefault(); const tr = this.closest('tr'); const next = event.key==='ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if(next){ window.pendingFocusLineId=next.dataset.lineId; window.pendingFocusInputIndex=2; setTimeout(()=>window.applyPendingFocus(),50); } } else if(event.key==='Enter'){ event.preventDefault(); window.pendingFocusLineId='barcode'; setTimeout(()=>window.applyPendingFocus(),50); }" style="text-align: center; font-weight: 700; font-size: 14px;" />
+              <input type="number" class="row-discount-input" value="${item.discount || 0}" min="0" step="any" onfocus="this.select()" onchange="updateItemDiscount(${item.lineId}, this.value)" onkeydown="if(event.key==='ArrowDown' || event.key==='ArrowUp'){ event.preventDefault(); const tr = this.closest('tr'); const next = event.key==='ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if(next){ window.pendingFocusLineId=next.dataset.lineId; window.pendingFocusInputIndex=2; setTimeout(()=>window.applyPendingFocus(),50); } else if (event.key==='ArrowUp') { document.getElementById('barcode').focus({preventScroll:true}); } } else if(event.key==='Enter'){ event.preventDefault(); window.pendingFocusLineId='barcode'; setTimeout(()=>window.applyPendingFocus(),50); }" style="text-align: center; font-weight: 700; font-size: 14px;" />
             </td>
             <td style="text-align: center; font-weight: 600; color: var(--muted); display:none;">${item.gstPercent}%</td>
             <td style="text-align: right; font-weight: 800; font-size: 15px; padding-right: 14px;">₹${itemTotal.toFixed(2)}</td>
@@ -10957,7 +11022,7 @@ ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${
         .map((item, index) => {
           const qty = Number(item.qty || 0);
           const price = Number(item.price || 0);
-          const mrp = Number(item.mrp || item.originalPrice || price);
+          const mrp = Number(item.mrp || 0) > 0 ? Number(item.mrp) : Number(item.originalPrice || item.price || 0);
           const gstPct = Number(item.gstPercent || item.gstPct || item.tax_pct || 0);
           const lineTotal = qty * price;
           
@@ -20260,51 +20325,8 @@ ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${
       </div>
     </div>
   </div>
-<!-- License Protection Overlay -->
-  <div id="licenseModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:999999;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:12px;width:400px;padding:30px;box-shadow:0 10px 40px rgba(0,0,0,0.5);text-align:center;">
-      <h2 style="margin:0 0 10px;color:#1e293b;font-size:24px;">Activate Software</h2>
-      <p style="margin:0 0 20px;color:#64748b;font-size:14px;">Please enter your License Key to unlock the software.</p>
-      
-      <div style="background:#f1f5f9;padding:12px;border-radius:8px;margin-bottom:20px;">
-        <div style="font-size:12px;color:#64748b;font-weight:bold;margin-bottom:4px;">YOUR MACHINE ID</div>
-        <div id="licenseMachineId" style="font-size:16px;color:#1e293b;font-weight:bold;user-select:all;word-break:break-all;"></div>
-      </div>
-
-      <input type="text" id="licenseKeyInput" placeholder="Enter License Key" style="width:100%;padding:12px;border:2px solid #cbd5e1;border-radius:8px;font-size:16px;box-sizing:border-box;margin-bottom:10px;text-align:center;" />
-      <div id="licenseError" style="color:#ef4444;font-size:13px;margin-bottom:15px;height:20px;"></div>
-
-      <button onclick="handleActivateLicense()" id="activateBtn" style="width:100%;padding:12px;background:#3b82f6;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:bold;cursor:pointer;">Activate</button>
-    </div>
-  </div>
-
   <script>
-    async function handleActivateLicense() {
-      const key = document.getElementById("licenseKeyInput").value.trim();
-      const errEl = document.getElementById("licenseError");
-      const btn = document.getElementById("activateBtn");
-      
-      if (!key) {
-        errEl.textContent = "Please enter a valid License Key.";
-        return;
-      }
-      
-      btn.disabled = true;
-      btn.textContent = "Activating...";
-      errEl.textContent = "";
-
-      try {
-        await window.api.activateLicense(key);
-        document.getElementById("licenseModal").style.display = "none";
-        alert("Software Activated Successfully!");
-      } catch (err) {
-        errEl.textContent = "Invalid License Key!";
-        btn.disabled = false;
-        btn.textContent = "Activate";
-      }
-    }
-
-    // Run License Check on load
+    // Hide dropdowns on scroll
     window.addEventListener("scroll", (e) => {
       if (e.target && e.target.id && (e.target.id === "purchaseProductList" || e.target.id === "barcodeAutocomplete")) return;
       const pList = document.getElementById("purchaseProductList");
@@ -20312,20 +20334,6 @@ ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${
       const bList = document.getElementById("barcodeAutocomplete");
       if (bList && !bList.classList.contains("hidden")) bList.classList.add("hidden");
     }, true);
-
-    document.addEventListener("DOMContentLoaded", async () => {
-      if (window.api && window.api.checkLicense) {
-        try {
-          const { isValid, machineId } = await window.api.checkLicense();
-          if (!isValid) {
-            document.getElementById("licenseMachineId").textContent = machineId;
-            document.getElementById("licenseModal").style.display = "flex";
-          }
-        } catch (e) {
-          console.error("License check failed", e);
-        }
-      }
-    });
 
     // --- CLOUD AUTO-UPDATER LOGIC ---
     async function loadUpdateSettings() {
@@ -20864,6 +20872,24 @@ ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${
 
     // Global Enter-to-Tab Engine
     document.addEventListener('keydown', function(e) {
+      if ((e.key === "ArrowUp" || e.key === "ArrowDown") && document.getElementById("billing")?.style.display !== "none") {
+        if (e.defaultPrevented) return;
+        const el = document.activeElement;
+        const tag = el ? el.tagName.toLowerCase() : "";
+        if (tag === 'select' || (el && el.closest && el.closest("#cartTable"))) {
+          return;
+        }
+        e.preventDefault();
+        const qtyInputs = document.querySelectorAll("#cartTable input.qty-input");
+        if (qtyInputs.length > 0) {
+          if (e.key === "ArrowUp") {
+            qtyInputs[qtyInputs.length - 1].focus({ preventScroll: true });
+          } else {
+            qtyInputs[0].focus({ preventScroll: true });
+          }
+        }
+      }
+
       if (e.key === 'Enter') {
         if (e.defaultPrevented) return; // Respect local listeners that already handled Enter
         

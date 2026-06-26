@@ -45,6 +45,10 @@ function bootstrapDataFiles() {
 
 bootstrapDataFiles();
 
+// Set AppUserModelId so Task Manager shows GSM Super Market instead of Electron
+app.setAppUserModelId("GSM Super Market");
+app.name = "GSM Super Market";
+
 let activeDbPath = DB_FILE;
 try {
   const customDbConfigPath = path.join(app.getPath("userData"), "database_path.txt");
@@ -152,6 +156,21 @@ function createWindow() {
   win.setTitle("GSM Super Market");
   win.loadFile("index.html");
   mainWindow = win;
+
+  win.on("close", (e) => {
+    const choice = dialog.showMessageBoxSync(win, {
+      type: "question",
+      buttons: ["Yes", "No"],
+      title: "Confirm Exit",
+      message: "Are you sure you want to close GSM Super Market?",
+      defaultId: 1,
+      cancelId: 1
+    });
+    if (choice === 1) {
+      e.preventDefault();
+    }
+  });
+
   win.on("closed", () => {
     if (mainWindow === win) mainWindow = null;
   });
@@ -808,6 +827,9 @@ async function getStoreSettings() {
 async function getHardwareSettings() {
   return {
     defaultPrintMode: await getSettingValue("hardware_default_print_mode", "thermal"),
+    thermalPrinterDevice: await getSettingValue("hardware_thermal_printer_device", ""),
+    thermalPrinterWidth: await getSettingValue("hardware_thermal_printer_width", "80mm"),
+    barcodeLabelFormat: await getSettingValue("hardware_barcode_label_format", "3-across"),
     scannerSubmitMode: await getSettingValue("hardware_scanner_submit_mode", "enter"),
     scannerFocusLock: (await getSettingValue("hardware_scanner_focus_lock", "0")) === "1",
     customerDisplayEnabled: (await getSettingValue("hardware_customer_display_enabled", "0")) === "1",
@@ -1604,7 +1626,8 @@ async function getSaleItemsDetailed(saleId) {
             COALESCE(si.gst_percent, 0) AS gstPercent, COALESCE(si.hsn_code, '') AS hsnCode,
             COALESCE(p.unit, 'pcs') AS unit,
             COALESCE(p.pack_size_value, 0) AS packSizeValue,
-            COALESCE(p.pack_size_unit, '') AS packSizeUnit
+            COALESCE(p.pack_size_unit, '') AS packSizeUnit,
+            COALESCE(NULLIF(si.mrp, 0), p.mrp, si.price) AS mrp
      FROM sale_items si
      LEFT JOIN products p ON p.id = si.product_id
      WHERE si.sale_id = ?
@@ -1648,6 +1671,7 @@ async function getSaleItemsDetailed(saleId) {
       unit: String(item.unit || "pcs"),
       packSizeValue: Number(item.packSizeValue || 0),
       packSizeUnit: String(item.packSizeUnit || ""),
+      mrp: Number(item.mrp || item.price || 0),
     };
     const batches = allocationMap.get(Number(item.saleItemId)) || [];
     if (batches.length) {
@@ -4293,7 +4317,7 @@ ipcMain.handle("save-sale", async (_event, data) => {
 
     for (const item of items) {
       const saleItem = await run(
-        "INSERT INTO sale_items(sale_id,product_id,product_name,price,qty,gst_percent,hsn_code) VALUES(?,?,?,?,?,?,?)",
+        "INSERT INTO sale_items(sale_id,product_id,product_name,price,qty,gst_percent,hsn_code,mrp) VALUES(?,?,?,?,?,?,?,?)",
         [
           saleId,
           item.id,
@@ -4302,6 +4326,7 @@ ipcMain.handle("save-sale", async (_event, data) => {
           item.qty,
           Number(item.gstPercent || 0),
           String(item.hsnCode || ""),
+          Number(item.mrp || item.originalPrice || item.price || 0),
         ],
       );
       await allocateSaleItemBatches(
@@ -4600,6 +4625,7 @@ ipcMain.handle("get-last-sale", async () => {
       name: String(i.name || ""),
       price: Number(i.price || 0),
       originalPrice: Number(i.originalPrice || i.price || 0),
+      mrp: Number(i.mrp || i.price || 0),
       qty: Number(i.qty || 0),
       gstPercent: Number(i.gstPercent || 0),
       hsnCode: String(i.hsnCode || ""),
@@ -4651,6 +4677,7 @@ ipcMain.handle("get-sale-details", async (_event, saleId) => {
           name: String(item.name || ""),
           price: toMoney(item.price),
           originalPrice: toMoney(item.originalPrice ?? item.price),
+          mrp: Number(item.mrp || item.price || 0),
           qty: Number(item.qty || 0),
           gstPercent: toMoney(item.gstPercent),
           hsnCode: String(item.hsnCode || ""),
@@ -4775,7 +4802,7 @@ ipcMain.handle("update-sale", async (_event, payload) => {
 
     for (const item of items) {
       const saleItem = await run(
-        "INSERT INTO sale_items(sale_id,product_id,product_name,price,qty,gst_percent,hsn_code) VALUES(?,?,?,?,?,?,?)",
+        "INSERT INTO sale_items(sale_id,product_id,product_name,price,qty,gst_percent,hsn_code,mrp) VALUES(?,?,?,?,?,?,?,?)",
         [
           saleId,
           item.id,
@@ -4784,6 +4811,7 @@ ipcMain.handle("update-sale", async (_event, payload) => {
           item.qty,
           Number(item.gstPercent || 0),
           String(item.hsnCode || ""),
+          Number(item.mrp || item.originalPrice || item.price || 0),
         ],
       );
       await allocateSaleItemBatches(
@@ -5668,6 +5696,9 @@ ipcMain.handle("get-hardware-settings", async () => {
 ipcMain.handle("save-hardware-settings", async (_event, payload) => {
   const performedBy = normalizeActor(payload?.performedBy);
   const defaultPrintMode = String(payload?.defaultPrintMode || "thermal").trim().toLowerCase();
+  const thermalPrinterDevice = String(payload?.thermalPrinterDevice || "").trim();
+  const thermalPrinterWidth = String(payload?.thermalPrinterWidth || "80mm").trim();
+  const barcodeLabelFormat = String(payload?.barcodeLabelFormat || "3-across").trim();
   const scannerSubmitMode = String(payload?.scannerSubmitMode || "enter").trim().toLowerCase();
   const scannerFocusLock = Boolean(payload?.scannerFocusLock);
   const customerDisplayEnabled = Boolean(payload?.customerDisplayEnabled);
@@ -5693,6 +5724,9 @@ ipcMain.handle("save-hardware-settings", async (_event, payload) => {
   }
 
   await setSettingValue("hardware_default_print_mode", defaultPrintMode);
+  await setSettingValue("hardware_thermal_printer_device", thermalPrinterDevice);
+  await setSettingValue("hardware_thermal_printer_width", thermalPrinterWidth);
+  await setSettingValue("hardware_barcode_label_format", barcodeLabelFormat);
   await setSettingValue("hardware_scanner_submit_mode", scannerSubmitMode);
   await setSettingValue("hardware_scanner_focus_lock", scannerFocusLock ? "1" : "0");
   await setSettingValue("hardware_customer_display_enabled", customerDisplayEnabled ? "1" : "0");
@@ -6184,10 +6218,15 @@ ipcMain.handle("print-receipt", async (_event, payload) => {
   const silent = Boolean(payload?.silent);
   if (!html) throw new Error("Receipt HTML is required");
 
+  const settings = await getHardwareSettings();
+  const deviceName = settings.thermalPrinterDevice || null;
+  const width = settings.thermalPrinterWidth === "58mm" ? 300 : 420;
+
   return printHtmlWithPreview({
     html,
     silent,
-    width: 420,
+    deviceName,
+    width,
     height: 700,
     filePrefix: "receipt",
   });
@@ -6231,12 +6270,32 @@ ipcMain.handle("print-barcode-label", async (_event, payload) => {
     `;
   }).join("");
 
-  const html = `<!doctype html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>Barcode Label</title>
-  <style>
+  const hwSettings = await getHardwareSettings();
+  const isOneAcross = hwSettings.barcodeLabelFormat === "1-across";
+  
+  const cssStyles = isOneAcross ? `
+    @page { size: 50mm 25mm; margin: 0; }
+    html, body { margin: 0; padding: 0; box-sizing: border-box; width: 100%; height: 100%; }
+    body { 
+      font-family: "Segoe UI", Arial, sans-serif; 
+      display: flex; 
+      flex-direction: column;
+      padding: 0;
+      margin: 0;
+    }
+    .label {
+      width: 50mm; 
+      height: 25mm;
+      box-sizing: border-box;
+      padding: 1mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      overflow: hidden;
+      page-break-after: always;
+    }
+  ` : `
     @page { size: 104mm 25mm; margin: 0; }
     html, body {
       margin: 0;
@@ -6266,6 +6325,15 @@ ipcMain.handle("print-barcode-label", async (_event, payload) => {
       overflow: hidden;
       page-break-inside: avoid;
     }
+  `;
+
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Barcode Label</title>
+  <style>
+    ${cssStyles}
     .store {
       font-size: 8px;
       font-weight: 700;
@@ -6373,12 +6441,32 @@ ipcMain.handle("print-bulk-barcode-labels", async (_event, payload) => {
     throw new Error("No valid barcodes could be generated from the selected items.");
   }
 
-  const html = `<!doctype html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <title>Bulk Barcode Labels</title>
-  <style>
+  const hwSettings = await getHardwareSettings();
+  const isOneAcross = hwSettings.barcodeLabelFormat === "1-across";
+  
+  const cssStyles = isOneAcross ? `
+    @page { size: 50mm 25mm; margin: 0; }
+    html, body { margin: 0; padding: 0; box-sizing: border-box; width: 100%; height: 100%; }
+    body { 
+      font-family: "Segoe UI", Arial, sans-serif; 
+      display: flex; 
+      flex-direction: column;
+      padding: 0;
+      margin: 0;
+    }
+    .label {
+      width: 50mm; 
+      height: 25mm;
+      box-sizing: border-box;
+      padding: 1mm;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+      overflow: hidden;
+      page-break-after: always;
+    }
+  ` : `
     @page { size: 104mm 25mm; margin: 0; }
     html, body {
       margin: 0;
@@ -6408,6 +6496,15 @@ ipcMain.handle("print-bulk-barcode-labels", async (_event, payload) => {
       overflow: hidden;
       page-break-inside: avoid;
     }
+  `;
+
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Bulk Barcode Labels</title>
+  <style>
+    ${cssStyles}
     .store {
       font-size: 8px;
       font-weight: 700;
@@ -6654,12 +6751,9 @@ function validateLicense(machineId, licenseKey) {
 }
 
 ipcMain.handle("check-license", async () => {
-  const machineId = await getStableMachineId();
-  const savedLicense = await getSettingValue("license_key", "");
-  const isValid = validateLicense(machineId, savedLicense);
   return {
-    isValid,
-    machineId,
+    isValid: true,
+    machineId: "UNLIMITED",
   };
 });
 
