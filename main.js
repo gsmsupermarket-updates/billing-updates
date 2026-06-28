@@ -46,8 +46,8 @@ function bootstrapDataFiles() {
 bootstrapDataFiles();
 
 // Set AppUserModelId so Task Manager shows GSM Super Market instead of Electron
-app.setAppUserModelId("GSM Super Market");
-app.name = "GSM Super Market";
+app.setAppUserModelId("billswift-pos");
+app.name = "billswift-pos";
 
 let activeDbPath = DB_FILE;
 try {
@@ -646,7 +646,18 @@ async function runAutoBackup() {
   }
 }
 
-app.whenReady().then(async () => {
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
+  app.whenReady().then(async () => {
   // Critical setup tasks (fast)
   try {
     await ensureDefaultUsers();
@@ -816,7 +827,7 @@ async function getStoreSettings() {
     storeAddress: await getSettingValue("store_address", ""),
     storePhone: await getSettingValue("store_phone", ""),
     storeGstin: await getSettingValue("store_gstin", ""),
-    receiptFooter: await getSettingValue("store_receipt_footer", "*** THANK YOU ðŸ™ VISIT AGAIN ***"),
+    receiptFooter: await getSettingValue("store_receipt_footer", "*** THANK YOU ðŸ™  VISIT AGAIN ***"),
     receiptTnc: await getSettingValue("store_receipt_tnc", "*.Items Are Exchanged Within 7 Days"),
     logoPath: await getSettingValue("store_logo_path", ""),
     appLanguage: await getSettingValue("app_language", "en"),
@@ -828,6 +839,7 @@ async function getHardwareSettings() {
   return {
     defaultPrintMode: await getSettingValue("hardware_default_print_mode", "thermal"),
     thermalPrinterDevice: await getSettingValue("hardware_thermal_printer_device", ""),
+    barcodePrinterDevice: await getSettingValue("hardware_barcode_printer_device", ""),
     thermalPrinterWidth: await getSettingValue("hardware_thermal_printer_width", "80mm"),
     barcodeLabelFormat: await getSettingValue("hardware_barcode_label_format", "3-across"),
     scannerSubmitMode: await getSettingValue("hardware_scanner_submit_mode", "enter"),
@@ -2002,7 +2014,7 @@ ipcMain.handle("get-products", async (_event, payload) => {
      FROM products p
      LEFT JOIN categories c ON c.id = p.category_id
      ${includeArchived ? "" : "WHERE COALESCE(p.is_archived, 0) = 0"}
-     ORDER BY COALESCE(p.is_archived, 0) ASC, p.id DESC`,
+     ORDER BY COALESCE(p.is_archived, 0) ASC, p.name COLLATE NOCASE ASC`,
   );
 });
 
@@ -3440,7 +3452,7 @@ ipcMain.handle("get-supplier-statement", async (_event, supplierId) => {
   return buildSupplierStatement(id);
 });
 
-// â”€â”€â”€ SUPPLIER KHATA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ——— SUPPLIER KHATA ——————————————————————————————————————————————————————
 
 ipcMain.handle("get-supplier-khata", async (_event, supplierId) => {
   const id = Number(supplierId);
@@ -3452,7 +3464,7 @@ ipcMain.handle("get-supplier-khata", async (_event, supplierId) => {
   );
   if (!supplier) throw new Error("Supplier not found");
 
-  // All purchases (credit entries â€” money owed to supplier)
+  // All purchases (credit entries — money owed to supplier)
   const purchases = await all(
     `SELECT p.id, p.invoice_no AS invoiceNo, p.total, p.payment_mode AS paymentMode,
             p.created_at AS createdAt,
@@ -3461,7 +3473,7 @@ ipcMain.handle("get-supplier-khata", async (_event, supplierId) => {
     [id],
   );
 
-  // All payments made to supplier (debit entries â€” money paid)
+  // All payments made to supplier (debit entries — money paid)
   const payments = await all(
     `SELECT id, amount, payment_mode AS paymentMode, notes, created_at AS createdAt
      FROM supplier_payments WHERE supplier_id = ? ORDER BY created_at ASC, id ASC`,
@@ -3503,7 +3515,7 @@ ipcMain.handle("get-supplier-khata", async (_event, supplierId) => {
         type: "purchase",
         id: ev.id,
         date: String(ev.createdAt || ""),
-        desc: `Purchase Invoice: ${ev.invoiceNo || "â€”"}` + (toMoney(ev.returnedAmount) > 0 ? ` (Return: â‚¹${toMoney(ev.returnedAmount).toFixed(2)})` : ""),
+        desc: `Purchase Invoice: ${ev.invoiceNo || "—"}` + (toMoney(ev.returnedAmount) > 0 ? ` (Return: ₹${toMoney(ev.returnedAmount).toFixed(2)})` : ""),
         debit: 0,
         credit: netPurchase,
         balance: runningBalance,
@@ -3516,7 +3528,7 @@ ipcMain.handle("get-supplier-khata", async (_event, supplierId) => {
         type: "payment",
         id: ev.id,
         date: String(ev.createdAt || ""),
-        desc: `Payment â€” ${ev.paymentMode || "cash"}` + (ev.notes ? `: ${ev.notes}` : ""),
+        desc: `Payment — ${ev.paymentMode || "cash"}` + (ev.notes ? `: ${ev.notes}` : ""),
         debit: amt,
         credit: 0,
         balance: runningBalance,
@@ -3558,7 +3570,7 @@ ipcMain.handle("add-supplier-payment", async (_event, payload) => {
     [supplierId, amount, paymentMode, notes, performedBy, getLocalTimestamp()],
   );
   await logAuditEvent("supplier_payment", "success", performedBy,
-    `${supplier.name}`, `Payment â‚¹${amount.toFixed(2)} via ${paymentMode}`);
+    `${supplier.name}`, `Payment ₹${amount.toFixed(2)} via ${paymentMode}`);
   return { ok: true, amount };
 });
 
@@ -3842,12 +3854,12 @@ ipcMain.handle("import-products", async (_event, payload) => {
   // Helper: parse a numeric field, stripping currency symbols etc.
   const parseNum = (v) => {
     if (v === null || v === undefined) return NaN;
-    const s = String(v).replace(/[â‚¹$â‚¬Â£Â¥,\s]/g, "").trim();
+    const s = String(v).replace(/[₹$€£¥,\s]/g, "").trim();
     const n = parseFloat(s);
     return Number.isFinite(n) ? n : NaN;
   };
 
-  // Helper: clean HSN â€” keep only digits
+  // Helper: clean HSN — keep only digits
   const cleanHsn = (v) => String(v || "").replace(/[^\d]/g, "").trim();
 
   let imported = 0;
@@ -5627,7 +5639,7 @@ ipcMain.handle("save-store-settings", async (_event, payload) => {
   const storeAddress = String(payload?.storeAddress || "").trim();
   const storePhone = String(payload?.storePhone || "").trim();
   const storeGstin = String(payload?.storeGstin || "").trim().toUpperCase();
-  const receiptFooter = String(payload?.receiptFooter || "").trim() || "*** THANK YOU ðŸ™ VISIT AGAIN ***";
+  const receiptFooter = String(payload?.receiptFooter || "").trim() || "*** THANK YOU ðŸ™  VISIT AGAIN ***";
   const receiptTnc = String(payload?.receiptTnc || "").trim() || "*.Items Are Exchanged Within 7 Days";
   const logoPath = String(payload?.logoPath || "").trim();
   const appLanguage = String(payload?.appLanguage || "en").trim().toLowerCase();
@@ -5697,6 +5709,7 @@ ipcMain.handle("save-hardware-settings", async (_event, payload) => {
   const performedBy = normalizeActor(payload?.performedBy);
   const defaultPrintMode = String(payload?.defaultPrintMode || "thermal").trim().toLowerCase();
   const thermalPrinterDevice = String(payload?.thermalPrinterDevice || "").trim();
+  const barcodePrinterDevice = String(payload?.barcodePrinterDevice || "").trim();
   const thermalPrinterWidth = String(payload?.thermalPrinterWidth || "80mm").trim();
   const barcodeLabelFormat = String(payload?.barcodeLabelFormat || "3-across").trim();
   const scannerSubmitMode = String(payload?.scannerSubmitMode || "enter").trim().toLowerCase();
@@ -6202,14 +6215,23 @@ async function printHtmlWithPreview({
             reject(new Error(failureReason || "Print failed"));
             return;
           }
+          if (success) {
+            // Delay destroying window so OS print spooler can finish processing
+            setTimeout(() => {
+              if (!printWindow.isDestroyed()) printWindow.destroy();
+            }, 10000); // 10 seconds
+          } else {
+            if (!printWindow.isDestroyed()) printWindow.destroy();
+          }
           resolve(true);
         },
       );
     });
 
     return { ok: true };
-  } finally {
+  } catch (error) {
     if (!printWindow.isDestroyed()) printWindow.destroy();
+    throw error;
   }
 }
 
@@ -6274,7 +6296,7 @@ ipcMain.handle("print-barcode-label", async (_event, payload) => {
   const isOneAcross = hwSettings.barcodeLabelFormat === "1-across";
   
   const cssStyles = isOneAcross ? `
-    @page { size: 50mm 25mm; margin: 0; }
+    @page { margin: 0; }
     html, body { margin: 0; padding: 0; box-sizing: border-box; width: 100%; height: 100%; }
     body { 
       font-family: "Segoe UI", Arial, sans-serif; 
@@ -6296,7 +6318,7 @@ ipcMain.handle("print-barcode-label", async (_event, payload) => {
       page-break-after: always;
     }
   ` : `
-    @page { size: 104mm 25mm; margin: 0; }
+    @page { margin: 0; }
     html, body {
       margin: 0;
       padding: 0;
@@ -6376,6 +6398,7 @@ ipcMain.handle("print-barcode-label", async (_event, payload) => {
   return printHtmlWithPreview({
     html,
     silent,
+    deviceName: hwSettings.barcodePrinterDevice || null,
     width: 600,
     height: 300,
     filePrefix: "barcode-label",
@@ -6445,7 +6468,7 @@ ipcMain.handle("print-bulk-barcode-labels", async (_event, payload) => {
   const isOneAcross = hwSettings.barcodeLabelFormat === "1-across";
   
   const cssStyles = isOneAcross ? `
-    @page { size: 50mm 25mm; margin: 0; }
+    @page { margin: 0; }
     html, body { margin: 0; padding: 0; box-sizing: border-box; width: 100%; height: 100%; }
     body { 
       font-family: "Segoe UI", Arial, sans-serif; 
@@ -6467,7 +6490,7 @@ ipcMain.handle("print-bulk-barcode-labels", async (_event, payload) => {
       page-break-after: always;
     }
   ` : `
-    @page { size: 104mm 25mm; margin: 0; }
+    @page { margin: 0; }
     html, body {
       margin: 0;
       padding: 0;
@@ -6548,6 +6571,7 @@ ipcMain.handle("print-bulk-barcode-labels", async (_event, payload) => {
   return printHtmlWithPreview({
     html,
     silent,
+    deviceName: hwSettings.barcodePrinterDevice || null,
     width: 600,
     height: 300,
     filePrefix: "bulk-barcode-labels",
@@ -6883,3 +6907,10 @@ ipcMain.handle("get-printers", async () => {
   }
   return [];
 });
+
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+} // close gotTheLock block

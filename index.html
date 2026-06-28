@@ -7133,8 +7133,14 @@
             </select>
           </div>
           <div>
-            <label>Thermal Printer Device</label><br />
+            <label>Thermal Printer Device (For Receipts)</label><br />
             <select id="hardwareThermalPrinterDevice">
+              <option value="">-- Default System Printer --</option>
+            </select>
+          </div>
+          <div>
+            <label>Barcode Printer Device (For Labels)</label><br />
+            <select id="hardwareBarcodePrinterDevice">
               <option value="">-- Default System Printer --</option>
             </select>
           </div>
@@ -7750,6 +7756,7 @@
     const hardwareMessage = document.getElementById("hardwareMessage");
     const hardwareDefaultPrintModeInput = document.getElementById("hardwareDefaultPrintMode");
     const hardwareThermalPrinterDeviceInput = document.getElementById("hardwareThermalPrinterDevice");
+    const hardwareBarcodePrinterDeviceInput = document.getElementById("hardwareBarcodePrinterDevice");
     const hardwareThermalPrinterWidthInput = document.getElementById("hardwareThermalPrinterWidth");
     const hardwareBarcodeLabelFormatInput = document.getElementById("hardwareBarcodeLabelFormat");
     const hardwareScannerSubmitModeInput = document.getElementById("hardwareScannerSubmitMode");
@@ -9375,6 +9382,7 @@
         await window.api.saveHardwareSettings({
           defaultPrintMode: String(hardwareDefaultPrintModeInput.value || "thermal"),
           thermalPrinterDevice: String(hardwareThermalPrinterDeviceInput.value || "").trim(),
+          barcodePrinterDevice: String(hardwareBarcodePrinterDeviceInput.value || "").trim(),
           thermalPrinterWidth: String(hardwareThermalPrinterWidthInput.value || "80mm"),
           barcodeLabelFormat: String(hardwareBarcodeLabelFormatInput.value || "3-across"),
           scannerSubmitMode: String(hardwareScannerSubmitModeInput.value || "enter"),
@@ -9427,8 +9435,11 @@
         hardwareDiagnosticsCache = data || {};
         const printers = Array.isArray(data.printers) ? data.printers : [];
         const currentDevice = hardwareSettingsCache.thermalPrinterDevice || "";
+        const currentBarcodeDevice = hardwareSettingsCache.barcodePrinterDevice || "";
         hardwareThermalPrinterDeviceInput.innerHTML = `<option value="">-- Default System Printer --</option>` + 
           printers.map(p => `<option value="${esc(p.name)}" ${p.name === currentDevice ? 'selected' : ''}>${esc(p.displayName || p.name)}</option>`).join("");
+        hardwareBarcodePrinterDeviceInput.innerHTML = `<option value="">-- Default System Printer --</option>` + 
+          printers.map(p => `<option value="${esc(p.name)}" ${p.name === currentBarcodeDevice ? 'selected' : ''}>${esc(p.displayName || p.name)}</option>`).join("");
         hardwareDiagSummary.textContent =
           `App ${data.appVersion || "-"} | Electron ${data.electronVersion || "-"} | Node ${data.nodeVersion || "-"} | Backups ${Number(data.backupCount || 0)} | Customer Display ${data.customerDisplayOpen ? "Open" : "Closed"} | Mobile Companion ${data.mobileCompanionOpen ? "Open" : "Closed"}`;
 
@@ -9615,7 +9626,7 @@
       autocompleteResults = allProductsCache.filter(p =>
         (String(p.name || '').toLowerCase().includes(val)) ||
         (String(p.barcode || '').toLowerCase().includes(val))
-      ).slice(0, 20);
+      ).sort((a, b) => ((String(b.name||'').toLowerCase().startsWith(val) || String(b.barcode||'').toLowerCase().startsWith(val)) ? 1 : 0) - ((String(a.name||'').toLowerCase().startsWith(val) || String(a.barcode||'').toLowerCase().startsWith(val)) ? 1 : 0)).slice(0, 20);
 
       if (autocompleteResults.length === 0) {
         barcodeAutocomplete.innerHTML = `<div style="padding:10px 14px;color:#64748b;font-size:13px;">No products found</div>`;
@@ -9708,9 +9719,7 @@
         }
       }
       setTimeout(() => {
-        const firstQty = document.querySelector("#cartTable input.qty-input");
-        if (firstQty) firstQty.focus();
-        else if (barcodeInput) barcodeInput.focus();
+        if (barcodeInput) barcodeInput.focus();
       }, 10);
     }
 
@@ -9879,13 +9888,19 @@
     window.applyPendingFocus = function() {
       if (!window.pendingFocusLineId) return;
       if (window.pendingFocusLineId === "barcode") {
-        document.getElementById("barcode")?.focus();
+        const barcodeEl = document.getElementById("barcode");
+        if (barcodeEl) {
+          barcodeEl.focus({ preventScroll: true });
+          barcodeEl.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        }
       } else {
         const row = document.querySelector(`tr[data-line-id="${window.pendingFocusLineId}"]`);
         if (row) {
           const rowInputs = Array.from(row.querySelectorAll("input:not([readonly]):not([disabled])"));
           if (rowInputs[window.pendingFocusInputIndex]) {
-            rowInputs[window.pendingFocusInputIndex].focus({ preventScroll: true });
+            const el = rowInputs[window.pendingFocusInputIndex];
+            el.focus({ preventScroll: true });
+            el.scrollIntoView({ block: "nearest", behavior: "smooth" });
             if (typeof rowInputs[window.pendingFocusInputIndex].select === "function") {
               rowInputs[window.pendingFocusInputIndex].select();
             }
@@ -10348,7 +10363,7 @@ HSN: ${item.hsnCode || "-"}
 ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${item.expiryDate}` : ""}`).trim();
 
         return `
-          <tr title="${tooltipText}" data-line-id="${item.lineId}">
+          <tr title="${tooltipText}" data-line-id="${item.lineId}" style="cursor: pointer;" onclick="if(event.target.tagName !== 'INPUT' && event.target.tagName !== 'BUTTON' && event.target.tagName !== 'SELECT') { const qty = this.querySelector('.qty-input'); if(qty) { qty.focus({preventScroll:true}); qty.select(); } }">
             <td style="padding-left: 14px;">
               <div class="dash-row-title" style="font-weight: 800; font-size: 15px; color: var(--text);">${esc(item.name)}</div>
               ${packLabel ? `<div class="muted" style="font-size: 11px;">Pack: ${esc(packLabel)}</div>` : ""}
@@ -10358,17 +10373,17 @@ ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${
             </td>
             <td>
               <div class="qty-adjuster">
-                <input type="number" class="qty-input" value="${item.qty}" min="0.001" step="any" onfocus="this.select()" onchange="updateQty(${item.lineId}, this.value)" onkeydown="if(event.key==='ArrowDown' || event.key==='ArrowUp'){ event.preventDefault(); const tr = this.closest('tr'); const next = event.key==='ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if(next){ window.pendingFocusLineId=next.dataset.lineId; window.pendingFocusInputIndex=0; setTimeout(()=>window.applyPendingFocus(),50); } else if (event.key==='ArrowUp') { document.getElementById('barcode').focus({preventScroll:true}); } } else if(event.key==='Enter'){ event.preventDefault(); window.pendingFocusLineId='${item.lineId}'; window.pendingFocusInputIndex=1; setTimeout(()=>window.applyPendingFocus(),50); }" style="width: 100%; border-radius: 6px; text-align: center; font-weight: 800; font-size: 15px; color: var(--text);" />
+                <input type="number" class="qty-input" value="${item.qty}" min="0.001" step="any" onfocus="this.select()" onchange="updateQty(${item.lineId}, this.value)" onkeydown="if(event.key==='ArrowDown' || event.key==='ArrowUp'){ event.preventDefault(); const tr = this.closest('tr'); const next = event.key==='ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if(next){ window.pendingFocusLineId=next.dataset.lineId; window.pendingFocusInputIndex=0; setTimeout(()=>window.applyPendingFocus(),50); } else if (event.key==='ArrowUp') { window.pendingFocusLineId='barcode'; setTimeout(()=>window.applyPendingFocus(),50); } } else if(event.key==='Enter'){ event.preventDefault(); window.pendingFocusLineId='${item.lineId}'; window.pendingFocusInputIndex=1; setTimeout(()=>window.applyPendingFocus(),50); }" style="width: 100%; border-radius: 6px; text-align: center; font-weight: 800; font-size: 15px; color: var(--text);" />
               </div>
             </td>
             <td style="text-align: center; font-weight: 700; color: var(--muted); font-size: 14px;">
               ${Number(item.mrp || item.originalPrice || 0).toFixed(2)}
             </td>
             <td style="text-align: center;">
-              <input type="number" class="row-discount-input" value="${Number(item.originalPrice).toFixed(2)}" min="0" step="any" onfocus="this.select()" onchange="updateItemRate(${item.lineId}, this.value)" onkeydown="if(event.key==='ArrowDown' || event.key==='ArrowUp'){ event.preventDefault(); const tr = this.closest('tr'); const next = event.key==='ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if(next){ window.pendingFocusLineId=next.dataset.lineId; window.pendingFocusInputIndex=1; setTimeout(()=>window.applyPendingFocus(),50); } else if (event.key==='ArrowUp') { document.getElementById('barcode').focus({preventScroll:true}); } } else if(event.key==='Enter'){ event.preventDefault(); window.pendingFocusLineId='${item.lineId}'; window.pendingFocusInputIndex=2; setTimeout(()=>window.applyPendingFocus(),50); }" style="text-align: center; font-weight: 700; font-size: 14px;" />
+              <input type="number" class="row-discount-input" value="${Number(item.originalPrice).toFixed(2)}" min="0" step="any" onfocus="this.select()" onchange="updateItemRate(${item.lineId}, this.value)" onkeydown="if(event.key==='ArrowDown' || event.key==='ArrowUp'){ event.preventDefault(); const tr = this.closest('tr'); const next = event.key==='ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if(next){ window.pendingFocusLineId=next.dataset.lineId; window.pendingFocusInputIndex=1; setTimeout(()=>window.applyPendingFocus(),50); } else if (event.key==='ArrowUp') { window.pendingFocusLineId='barcode'; setTimeout(()=>window.applyPendingFocus(),50); } } else if(event.key==='Enter'){ event.preventDefault(); window.pendingFocusLineId='${item.lineId}'; window.pendingFocusInputIndex=2; setTimeout(()=>window.applyPendingFocus(),50); }" style="text-align: center; font-weight: 700; font-size: 14px;" />
             </td>
             <td style="text-align: center;">
-              <input type="number" class="row-discount-input" value="${item.discount || 0}" min="0" step="any" onfocus="this.select()" onchange="updateItemDiscount(${item.lineId}, this.value)" onkeydown="if(event.key==='ArrowDown' || event.key==='ArrowUp'){ event.preventDefault(); const tr = this.closest('tr'); const next = event.key==='ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if(next){ window.pendingFocusLineId=next.dataset.lineId; window.pendingFocusInputIndex=2; setTimeout(()=>window.applyPendingFocus(),50); } else if (event.key==='ArrowUp') { document.getElementById('barcode').focus({preventScroll:true}); } } else if(event.key==='Enter'){ event.preventDefault(); window.pendingFocusLineId='barcode'; setTimeout(()=>window.applyPendingFocus(),50); }" style="text-align: center; font-weight: 700; font-size: 14px;" />
+              <input type="number" class="row-discount-input" value="${item.discount || 0}" min="0" step="any" onfocus="this.select()" onchange="updateItemDiscount(${item.lineId}, this.value)" onkeydown="if(event.key==='ArrowDown' || event.key==='ArrowUp'){ event.preventDefault(); const tr = this.closest('tr'); const next = event.key==='ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if(next){ window.pendingFocusLineId=next.dataset.lineId; window.pendingFocusInputIndex=2; setTimeout(()=>window.applyPendingFocus(),50); } else if (event.key==='ArrowUp') { window.pendingFocusLineId='barcode'; setTimeout(()=>window.applyPendingFocus(),50); } } else if(event.key==='Enter'){ event.preventDefault(); window.pendingFocusLineId='barcode'; setTimeout(()=>window.applyPendingFocus(),50); }" style="text-align: center; font-weight: 700; font-size: 14px;" />
             </td>
             <td style="text-align: center; font-weight: 600; color: var(--muted); display:none;">${item.gstPercent}%</td>
             <td style="text-align: right; font-weight: 800; font-size: 15px; padding-right: 14px;">₹${itemTotal.toFixed(2)}</td>
@@ -11500,7 +11515,7 @@ ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${
       const resEl = document.getElementById('catalogSearchResults');
       if (!val) { resEl.style.display = 'none'; return; }
       
-      const matched = allProductsCache.filter(p => p.name.toLowerCase().includes(val) || String(p.barcode || '').toLowerCase().includes(val)).slice(0, 50);
+      const matched = allProductsCache.filter(p => p.name.toLowerCase().includes(val) || String(p.barcode || '').toLowerCase().includes(val)).sort((a, b) => ((String(b.name||'').toLowerCase().startsWith(val) || String(b.barcode||'').toLowerCase().startsWith(val)) ? 1 : 0) - ((String(a.name||'').toLowerCase().startsWith(val) || String(a.barcode||'').toLowerCase().startsWith(val)) ? 1 : 0)).slice(0, 50);
       
       if (matched.length === 0) {
         resEl.innerHTML = '<div style="padding:16px;color:#64748b;font-size:14px;text-align:center;font-weight:500;">No products found</div>';
@@ -11618,7 +11633,7 @@ ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${
       const resEl = document.getElementById('updateProductSearchResults');
       if (!val) { resEl.style.display = 'none'; return; }
       
-      const matched = allProductsCache.filter(p => p.name.toLowerCase().includes(val) || String(p.barcode || '').toLowerCase().includes(val)).slice(0, 50);
+      const matched = allProductsCache.filter(p => p.name.toLowerCase().includes(val) || String(p.barcode || '').toLowerCase().includes(val)).sort((a, b) => ((String(b.name||'').toLowerCase().startsWith(val) || String(b.barcode||'').toLowerCase().startsWith(val)) ? 1 : 0) - ((String(a.name||'').toLowerCase().startsWith(val) || String(a.barcode||'').toLowerCase().startsWith(val)) ? 1 : 0)).slice(0, 50);
       
       if (matched.length === 0) {
         resEl.innerHTML = '<div style="padding:10px;color:#94a3b8;font-size:13px;text-align:center;">No products found</div>';
@@ -20075,7 +20090,7 @@ ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${
       const resEl = document.getElementById('bpBulkSearchResults');
       if (!val) { resEl.style.display = 'none'; return; }
       
-      const matched = allProductsCache.filter(p => p.name.toLowerCase().includes(val) || String(p.barcode || '').toLowerCase().includes(val)).slice(0, 30);
+      const matched = allProductsCache.filter(p => p.name.toLowerCase().includes(val) || String(p.barcode || '').toLowerCase().includes(val)).sort((a, b) => ((String(b.name||'').toLowerCase().startsWith(val) || String(b.barcode||'').toLowerCase().startsWith(val)) ? 1 : 0) - ((String(a.name||'').toLowerCase().startsWith(val) || String(a.barcode||'').toLowerCase().startsWith(val)) ? 1 : 0)).slice(0, 30);
       
       if (matched.length === 0) {
         resEl.innerHTML = '<div style="padding:8px;color:#94a3b8;font-size:12px;text-align:center;">No products found</div>';
@@ -20883,9 +20898,13 @@ ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${
         const qtyInputs = document.querySelectorAll("#cartTable input.qty-input");
         if (qtyInputs.length > 0) {
           if (e.key === "ArrowUp") {
-            qtyInputs[qtyInputs.length - 1].focus({ preventScroll: true });
+            const target = qtyInputs[qtyInputs.length - 1];
+            target.focus({ preventScroll: true });
+            target.scrollIntoView({ block: "nearest", behavior: "smooth" });
           } else {
-            qtyInputs[0].focus({ preventScroll: true });
+            const target = qtyInputs[0];
+            target.focus({ preventScroll: true });
+            target.scrollIntoView({ block: "nearest", behavior: "smooth" });
           }
         }
       }
