@@ -6164,7 +6164,7 @@ async function printHtmlWithPreview({
   height = 700,
   filePrefix = "print",
   pageSize = null,
-  marginType = "printableArea",
+  marginType = "default",
 }) {
   const printWindow = new BrowserWindow({
     width,
@@ -6200,8 +6200,10 @@ async function printHtmlWithPreview({
       const printOptions = {
         silent,
         printBackground: true,
-        margins: { marginType },
       };
+      if (marginType && marginType !== "default") {
+        printOptions.margins = { marginType };
+      }
       if (deviceName) {
         printOptions.deviceName = deviceName;
       }
