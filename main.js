@@ -6246,7 +6246,7 @@ ipcMain.handle("print-receipt", async (_event, payload) => {
   const settings = await getHardwareSettings();
   const deviceName = settings.thermalPrinterDevice || null;
   const is58 = settings.thermalPrinterWidth === "58mm";
-  const width = is58 ? 300 : 420;
+  const width = is58 ? 220 : 300;
 
   return printHtmlWithPreview({
     html,
