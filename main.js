@@ -6164,6 +6164,7 @@ async function printHtmlWithPreview({
   height = 700,
   filePrefix = "print",
   pageSize = null,
+  marginType = "printableArea",
 }) {
   const printWindow = new BrowserWindow({
     width,
@@ -6199,7 +6200,7 @@ async function printHtmlWithPreview({
       const printOptions = {
         silent,
         printBackground: true,
-        margins: { marginType: "none" },
+        margins: { marginType },
       };
       if (deviceName) {
         printOptions.deviceName = deviceName;
@@ -6402,6 +6403,7 @@ ipcMain.handle("print-barcode-label", async (_event, payload) => {
     width: 600,
     height: 300,
     filePrefix: "barcode-label",
+    marginType: "none",
   });
 });
 
@@ -6575,6 +6577,7 @@ ipcMain.handle("print-bulk-barcode-labels", async (_event, payload) => {
     width: 600,
     height: 300,
     filePrefix: "bulk-barcode-labels",
+    marginType: "none",
   });
 });
 
