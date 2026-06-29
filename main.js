@@ -6255,7 +6255,6 @@ ipcMain.handle("print-receipt", async (_event, payload) => {
     width,
     height: 700,
     filePrefix: "receipt",
-    pageSize: { width: is58 ? 58000 : 80000, height: 297000 },
   });
 });
 

@@ -11104,7 +11104,7 @@ ${item.batchNo ? `Batch: ${item.batchNo}\n` : ""}${item.expiryDate ? `Expiry: ${
   </style>
 </head>
 <body>
-  ${typeof STORE_LOGO_BASE64 !== 'undefined' && STORE_LOGO_BASE64 ? `<div style="text-align:center; margin-top:15px; margin-bottom:4px;"><img src="${STORE_LOGO_BASE64}" style="max-width:45%; max-height:80px; width:auto;" /></div>` : ""}
+  ${typeof STORE_LOGO_BASE64 !== 'undefined' && STORE_LOGO_BASE64 ? `<div style="text-align:center; margin-top:15px; margin-bottom:4px;"><img src="${STORE_LOGO_BASE64}" style="max-width:45%; max-height:80px; width:auto; background: #fff;" /></div>` : ""}
   <div class="store-name">${esc(store.storeName)}</div>
   ${store.storeAddress ? `<div class="store-address">${esc(store.storeAddress)}</div>` : ""}
   <div class="store-contact">Ph: ${store.storePhone ? esc(store.storePhone) : "N/A"}</div>
