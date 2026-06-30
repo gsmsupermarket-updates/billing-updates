@@ -1,8 +1,5 @@
 {
-  "version": "1.0.15",
-  "baseUrl": "https://raw.githubusercontent.com/gsmsupermarket-updates/billing-updates/main/",
-  "files": [
-    "index.html",
-    "main.js"
-  ]
+  "version": "1.0.26",
+  "baseUrl": "https://raw.githubusercontent.com/gsmsupermarket-updates/main/",
+  "file": "app.asar.gz"
 }
