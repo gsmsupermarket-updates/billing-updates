@@ -2,5 +2,6 @@
   "version": "1.0.35",
   "baseUrl": "https://raw.githubusercontent.com/Prajwal-005/GSM_updates/main/",
   "file": "app.asar.tmp.gz",
+  "files": "app.asar.tmp.gz",
   "releaseNotes": "Fixed barcode page size, hardware printer compatibility, and graceful exit."
 }
