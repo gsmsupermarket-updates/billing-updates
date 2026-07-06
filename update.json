@@ -1,7 +1,8 @@
 {
-  "version": "1.0.49",
+  "version": "1.0.50",
   "baseUrl": "https://raw.githubusercontent.com/gsmsupermarket-updates/billing-updates/main/",
   "file": "app.asar.tmp.gz",
-  "files": "app.asar.tmp.gz",
-  "releaseNotes": "Fixed barcode page size, hardware printer compatibility, and graceful exit."
+  "files": [
+    "app.asar.tmp.gz"
+  ]
 }
